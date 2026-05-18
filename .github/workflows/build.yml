@@ -27,58 +27,42 @@ jobs:
       RELEASE: edge
       CI: 'true'
     steps:
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           apk update
-          apk add git ca-certificates python3 py3-jinja2 py3-pyyaml curl
+          apk add git ca-certificates python3 curl bash
           
-          # Install mkosi
+          # Install mkosi from edge repo
           apk add mkosi
-          
-          # Install pmbootstrap
-          cd /tmp
-          git clone --depth 1 https://github.com/postmarketOS/pmbootstrap.git
-          export PYTHONPATH="/tmp/pmbootstrap:$PYTHONPATH"
 
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Extract Bluefin common OCI
-        run: |
-          mkdir -p system_files/bluefin
-          
-          # Extract Bluefin OCI (optional - will continue if fails)
-          docker create --name bluefin-extract ghcr.io/projectbluefin/common:latest true 2>/dev/null || true
-          if docker export bluefin-extract 2>/dev/null | tar -C system_files/bluefin --strip-components=0 -xf - system_files/ 2>/dev/null; then
-            echo "Successfully extracted Bluefin OCI"
-          else
-            echo "Could not extract Bluefin OCI (continuing anyway)"
-          fi
-          docker rm bluefin-extract 2>/dev/null || true
-
       - name: Build PostmarketOS Duranium
         run: |
-          export PYTHONPATH="/tmp/pmbootstrap:$PYTHONPATH"
           cd $GITHUB_WORKSPACE
-          
-          # Build with mkosi
           mkosi --force build \
             -C mkosi.conf
 
-      - name: Compress image
+      - name: Compress images
         if: always()
         run: |
-          cd mkosi.output
-          if ls *.raw 1>/dev/null 2>&1; then
-            for img in *.raw; do
-              zstd -19 "$img" -o "${img}.zst"
-            done
-            ls -lh *.zst
+          if [ -d mkosi.output ]; then
+            cd mkosi.output
+            if ls *.raw 1>/dev/null 2>&1; then
+              apk add zstd
+              for img in *.raw; do
+                zstd -19 "$img" -o "${img}.zst"
+              done
+              ls -lh *.zst
+            else
+              echo "No raw images produced"
+              find . -type f
+            fi
           else
-            echo "No raw images produced"
-            ls -la
+            echo "mkosi.output directory not found"
           fi
 
       - name: Upload artifacts
@@ -86,5 +70,5 @@ jobs:
         if: always()
         with:
           name: duranium-bluefin-images
-          path: mkosi.output/*.zst
+          path: mkosi.output/
           retention-days: 30
