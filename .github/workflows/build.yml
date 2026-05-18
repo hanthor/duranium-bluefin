@@ -1,0 +1,42 @@
+name: Build Duranium+Bluefin
+
+on:
+  push:
+    branches: [main]
+    paths: [mkosi*, scripts/**, .github/workflows/build.yml]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip erofs-utils
+          sudo pip3 install --upgrade mkosi
+      - run: mkosi -C . summary
+      - run: |
+          echo '#!/bin/bash' | sudo tee /usr/local/bin/bootctl > /dev/null
+          sudo chmod +x /usr/local/bin/bootctl
+          export PATH="/usr/local/bin:$PATH"
+          sudo env PATH="$PATH" mkosi -C . build -vv
+        timeout-minutes: 180
+      - run: cd mkosi.output && sha256sum * > checksums.sha256 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: duranium-bluefin
+          path: mkosi.output/
+      - if: github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          files: mkosi.output/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
