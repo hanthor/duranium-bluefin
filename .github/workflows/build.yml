@@ -1,61 +1,90 @@
-name: Build Duranium+Bluefin Image
+name: Build Duranium+Bluefin
 
 on:
   push:
     branches:
       - main
-  pull_request:
   workflow_dispatch:
+    inputs:
+      pmos_device:
+        description: 'PostmarketOS device'
+        required: false
+        default: 'qcom-sc7180-lenovo-thinkpad-x13s'
+      pmos_variant:
+        description: 'PostmarketOS UI variant'
+        required: false
+        default: 'gnome'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: alpine:edge
+      options: --privileged
+    env:
+      PMOS_DEVICE: ${{ github.event.inputs.pmos_device || 'qcom-sc7180-lenovo-thinkpad-x13s' }}
+      PMOS_VARIANT: ${{ github.event.inputs.pmos_variant || 'gnome' }}
+      RELEASE: edge
+      CI: 'true'
     steps:
+      - name: Install dependencies
+        run: |
+          apk update
+          apk add git ca-certificates python3 py3-jinja2 py3-pyyaml curl
+          
+          # Install mkosi
+          apk add mkosi
+          
+          # Install pmbootstrap
+          cd /tmp
+          git clone --depth 1 https://github.com/postmarketOS/pmbootstrap.git
+          export PYTHONPATH="/tmp/pmbootstrap:$PYTHONPATH"
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install mkosi and dependencies
-        run: |
-          set -e
-          # Update and install build tools
-          sudo apt-get update
-          sudo apt-get install -y git curl ca-certificates
-          
-          # Install mkosi from git (latest version with postmarketos support)
-          cd /tmp
-          git clone --depth 1 https://github.com/systemd/mkosi.git
-          cd mkosi
-          sudo pip install --break-system-packages -e . 2>&1 | tail -20
-
-      - name: Extract Bluefin common OCI system files
+      - name: Extract Bluefin common OCI
         run: |
           mkdir -p system_files/bluefin
           
-          # Pull Bluefin common OCI and extract to system_files
-          docker create --name bluefin-extract ghcr.io/projectbluefin/common:latest true
-          docker export bluefin-extract | tar -C system_files/bluefin --strip-components=0 -xf - system_files/ || true
-          docker rm bluefin-extract
-          
-          # List extracted files
-          find system_files/bluefin -type f 2>/dev/null | head -20 || echo "No system files extracted"
+          # Extract Bluefin OCI (optional - will continue if fails)
+          docker create --name bluefin-extract ghcr.io/projectbluefin/common:latest true 2>/dev/null || true
+          if docker export bluefin-extract 2>/dev/null | tar -C system_files/bluefin --strip-components=0 -xf - system_files/ 2>/dev/null; then
+            echo "Successfully extracted Bluefin OCI"
+          else
+            echo "Could not extract Bluefin OCI (continuing anyway)"
+          fi
+          docker rm bluefin-extract 2>/dev/null || true
 
-      - name: Build image with mkosi
+      - name: Build PostmarketOS Duranium
         run: |
+          export PYTHONPATH="/tmp/pmbootstrap:$PYTHONPATH"
           cd $GITHUB_WORKSPACE
-          sudo mkosi --force build
+          
+          # Build with mkosi
+          mkosi --force build \
+            -C mkosi.conf
 
       - name: Compress image
+        if: always()
         run: |
           cd mkosi.output
-          zstd -19 *.raw -o duranium-bluefin.raw.zst 2>/dev/null || true
-          ls -lh *.zst
+          if ls *.raw 1>/dev/null 2>&1; then
+            for img in *.raw; do
+              zstd -19 "$img" -o "${img}.zst"
+            done
+            ls -lh *.zst
+          else
+            echo "No raw images produced"
+            ls -la
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: duranium-bluefin-image
+          name: duranium-bluefin-images
           path: mkosi.output/*.zst
           retention-days: 30
