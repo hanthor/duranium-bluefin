@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+# Set sysext or confext "level" in the image to match IMAGE_VERSION
+for dir in usr/lib etc; do
+    release_dir="$BUILDROOT/$dir/extension-release.d"
+    [ -d "$release_dir" ] || continue
+    case "$dir" in
+        usr/lib) key=SYSEXT_LEVEL ;;
+        etc)     key=CONFEXT_LEVEL ;;
+    esac
+    for f in "$release_dir"/extension-release.*; do
+        [ -f "$f" ] || continue
+        echo "$key=$IMAGE_VERSION" >> "$f"
+    done
+done
