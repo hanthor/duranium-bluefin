@@ -26,16 +26,14 @@ jobs:
       
       - run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip erofs-utils
+          sudo apt-get install -y python3-pip erofs-utils git
           sudo pip3 install --upgrade mkosi
       
       - run: |
-          # For generic builds, set defaults
-          echo "PMOS_DEVICE=generic" >> $GITHUB_ENV
-          echo "PMOS_VARIANT=gnome" >> $GITHUB_ENV
-          echo "RELEASE=latest" >> $GITHUB_ENV
-      
-      - run: mkosi -C . summary
+          git config --global user.email "ci@github.com"
+          git config --global user.name "CI"
+          export GIT_DISCOVERY_ACROSS_FILESYSTEM=1
+          mkosi -C . summary
       - run: |
           echo '#!/bin/bash' | sudo tee /usr/local/bin/bootctl > /dev/null
           sudo chmod +x /usr/local/bin/bootctl
