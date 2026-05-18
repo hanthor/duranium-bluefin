@@ -1,54 +1,64 @@
-name: Build Duranium+Bluefin
+name: Build Duranium+Bluefin Image
 
 on:
   push:
-    branches: [main]
-    paths: [mkosi*, scripts/**, .github/workflows/build.yml]
+    branches:
+      - main
+  pull_request:
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: Release tag
-        required: false
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Bluefin common OCI system files
+        run: |
+          mkdir -p system_files/bluefin
+          
+          # Pull Bluefin common OCI and extract to system_files
+          docker create --name bluefin-extract ghcr.io/projectbluefin/common:latest true
+          docker export bluefin-extract | tar -C system_files/bluefin --strip-components=0 -xf - system_files/ || true
+          docker rm bluefin-extract
+          
+          # List extracted files
+          find system_files/bluefin -type f | head -20
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
         with:
-          fetch-depth: 0
-      
-      - run: |
-          git config --global user.email "ci@github.com"
-          git config --global user.name "GitHub CI"
-      
-      - run: |
+          platforms: arm64
+
+      - name: Install dependencies
+        run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip erofs-utils git
-          sudo pip3 install --upgrade mkosi
-      
-      - run: |
-          git config --global user.email "ci@github.com"
-          git config --global user.name "CI"
-          export GIT_DISCOVERY_ACROSS_FILESYSTEM=1
-          mkosi -C . summary
-      - run: |
-          echo '#!/bin/bash' | sudo tee /usr/local/bin/bootctl > /dev/null
-          sudo chmod +x /usr/local/bin/bootctl
-          export PATH="/usr/local/bin:$PATH"
-          sudo env PATH="$PATH" mkosi -C . build -vv
-        timeout-minutes: 180
-      - run: cd mkosi.output && sha256sum * > checksums.sha256 2>/dev/null || true
-      - uses: actions/upload-artifact@v4
+          sudo apt-get install -y mkosi systemd
+
+      - name: Build image
+        run: |
+          sudo mkosi --force build
+
+      - name: Compress image
+        run: |
+          cd mkosi.output
+          zstd -19 *.raw -o duranium-bluefin.raw.zst
+          ls -lh *.zst
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: duranium-bluefin
-          path: mkosi.output/
-      - if: github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag
+          name: duranium-bluefin-image
+          path: mkosi.output/*.raw.zst
+          retention-days: 30
+
+      - name: Create Release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event.inputs.release_tag }}
-          files: mkosi.output/*
+          files: mkosi.output/*.raw.zst
+          tag_name: auto-v1.0.0
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
