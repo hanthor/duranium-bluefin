@@ -29,6 +29,12 @@ jobs:
           sudo apt-get install -y python3-pip erofs-utils
           sudo pip3 install --upgrade mkosi
       
+      - run: |
+          # For generic builds, set defaults
+          echo "PMOS_DEVICE=generic" >> $GITHUB_ENV
+          echo "PMOS_VARIANT=gnome" >> $GITHUB_ENV
+          echo "RELEASE=latest" >> $GITHUB_ENV
+      
       - run: mkosi -C . summary
       - run: |
           echo '#!/bin/bash' | sudo tee /usr/local/bin/bootctl > /dev/null
