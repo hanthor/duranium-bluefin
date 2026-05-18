@@ -17,10 +17,18 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - run: |
+          git config --global user.email "ci@github.com"
+          git config --global user.name "GitHub CI"
+      
       - run: |
           sudo apt-get update
           sudo apt-get install -y python3-pip erofs-utils
           sudo pip3 install --upgrade mkosi
+      
       - run: mkosi -C . summary
       - run: |
           echo '#!/bin/bash' | sudo tee /usr/local/bin/bootctl > /dev/null
