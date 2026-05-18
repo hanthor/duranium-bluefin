@@ -10,49 +10,52 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: systemd/mkosi:latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Install mkosi and dependencies
+        run: |
+          set -e
+          # Update and install build tools
+          sudo apt-get update
+          sudo apt-get install -y git curl ca-certificates
+          
+          # Install mkosi from git (latest version with postmarketos support)
+          cd /tmp
+          git clone --depth 1 https://github.com/systemd/mkosi.git
+          cd mkosi
+          sudo pip install --break-system-packages -e . 2>&1 | tail -20
+
       - name: Extract Bluefin common OCI system files
         run: |
           mkdir -p system_files/bluefin
           
           # Pull Bluefin common OCI and extract to system_files
-          docker create --name bluefin-extract ghcr.io/projectbluefin/common:latest true 2>/dev/null || podman create --name bluefin-extract ghcr.io/projectbluefin/common:latest true
-          (docker export bluefin-extract 2>/dev/null || podman export bluefin-extract) | tar -C system_files/bluefin --strip-components=0 -xf - system_files/ || true
-          (docker rm bluefin-extract 2>/dev/null || podman rm bluefin-extract) || true
+          docker create --name bluefin-extract ghcr.io/projectbluefin/common:latest true
+          docker export bluefin-extract | tar -C system_files/bluefin --strip-components=0 -xf - system_files/ || true
+          docker rm bluefin-extract
           
           # List extracted files
-          find system_files/bluefin -type f 2>/dev/null | head -20 || echo "No system files extracted (optional)"
+          find system_files/bluefin -type f 2>/dev/null | head -20 || echo "No system files extracted"
 
       - name: Build image with mkosi
         run: |
-          mkosi --force build
+          cd $GITHUB_WORKSPACE
+          sudo mkosi --force build
 
       - name: Compress image
         run: |
           cd mkosi.output
-          zstd -19 *.raw -o duranium-bluefin.raw.zst
+          zstd -19 *.raw -o duranium-bluefin.raw.zst 2>/dev/null || true
           ls -lh *.zst
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: duranium-bluefin-image
-          path: mkosi.output/*.raw.zst
+          path: mkosi.output/*.zst
           retention-days: 30
-
-      - name: Create Release
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: mkosi.output/*.raw.zst
-          tag_name: auto-build-$(date +%s)
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
