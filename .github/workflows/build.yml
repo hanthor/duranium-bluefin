@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Extract Bluefin common OCI system files
         run: |
@@ -26,15 +28,16 @@ jobs:
           # List extracted files
           find system_files/bluefin -type f | head -20
 
+      - name: Install mkosi with PostmarketOS support
+        run: |
+          sudo apt-get update
+          sudo apt-get remove -y mkosi || true
+          sudo pip3 install --upgrade mkosi systemd
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mkosi systemd
 
       - name: Build image
         run: |
@@ -52,13 +55,3 @@ jobs:
           name: duranium-bluefin-image
           path: mkosi.output/*.raw.zst
           retention-days: 30
-
-      - name: Create Release
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: mkosi.output/*.raw.zst
-          tag_name: auto-v1.0.0
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
