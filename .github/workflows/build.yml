@@ -31,21 +31,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install build dependencies in Alpine
+      - name: Setup PostmarketOS build environment
         run: |
           set -e
-          apk update
-          apk add --no-cache \
-            git curl ca-certificates zstd \
-            python3 py3-pip perl bash dosfstools \
-            e2fsprogs-extra btrfs-progs xfsprogs \
-            qemu-img qemu-system-aarch64
+          # Update Alpine
+          apk upgrade -a
+          apk add bash curl distribution-gpg-keys git mkosi python3 merge-usr
           
-          # Install mkosi from git
-          git clone --depth 1 https://github.com/systemd/mkosi.git /tmp/mkosi
-          cd /tmp/mkosi
-          pip install --break-system-packages .
-          mkosi --version
+          # Convert to PostmarketOS environment (like official duranium does)
+          ln -sf /usr/share/distribution-gpg-keys/postmarketos/build.postmarketos.org.rsa.pub /etc/apk/keys
+          echo "http://mirror.postmarketos.org/postmarketos/extra-repos/systemd/main" >> /etc/apk/repositories
+          echo "http://mirror.postmarketos.org/postmarketos/main" >> /etc/apk/repositories
+          apk update
+          apk add postmarketos-base-systemd postmarketos-base
+          
+          # Merge /usr for mkosi compatibility
+          merge-usr >/dev/null 2>&1 || true
+          
+          echo "✅ PostmarketOS build environment ready"
 
       - name: Clone pmaports
         run: |
@@ -58,6 +61,8 @@ jobs:
         run: |
           set -e
           cd $GITHUB_WORKSPACE
+          
+          # Use python script like official duranium does, or build directly
           export IMAGEVERSION=$(date +%Y%m%d)
           mkosi --force build
           echo "✅ Build complete"
