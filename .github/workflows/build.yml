@@ -38,7 +38,7 @@ jobs:
       - name: Build Duranium+Bluefin image
         run: |
           cd $GITHUB_WORKSPACE
-          mkosi --force build
+          sudo mkosi --force build
 
       - name: Compress and verify output
         if: always()
