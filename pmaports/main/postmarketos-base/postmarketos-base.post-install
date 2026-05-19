@@ -1,6 +1,0 @@
-#!/bin/sh -e
-
-# Make apk interactive by default
-touch /etc/apk/interactive
-
-exit 0

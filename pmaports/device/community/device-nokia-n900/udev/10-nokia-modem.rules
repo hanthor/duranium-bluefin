@@ -1,2 +1,0 @@
-# Export GPIOs for nokia-modem
-DRIVER=="nokia-modem", RUN+="/bin/ln -sf /sys/bus/hsi/devices/n900-modem /dev/cmt"

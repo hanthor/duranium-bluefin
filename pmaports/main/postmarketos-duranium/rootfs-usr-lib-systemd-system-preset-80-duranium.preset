@@ -1,2 +1,0 @@
-enable duranium-firstboot.service
-enable systemd-sysext.service

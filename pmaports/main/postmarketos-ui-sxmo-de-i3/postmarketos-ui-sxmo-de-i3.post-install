@@ -1,3 +1,0 @@
-#!/bin/sh
-
-tinydm-set-session -s /usr/share/xsessions/sxmo_i3.desktop

@@ -1,6 +1,0 @@
-#!/bin/sh
-
-rc-update add brightnessctl default
-rc-update add elogind default
-rc-update add networkmanager default
-rc-update add tinydm default
