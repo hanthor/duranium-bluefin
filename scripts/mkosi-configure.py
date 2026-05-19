@@ -22,10 +22,11 @@ def main() -> int:
 
     result = subprocess.run(
         [f"{srcdir}/scripts/pmaports.py",
-          # Allow downloading pmaports inside mkosi.tools sandbox (it has network access)
-          "--device", device,
-          "--ui", variant,
-          "--release", release],
+         # mkosi.configure scripts don't have network access
+         "--skip-fetch",
+         "--device", device,
+         "--ui", variant,
+         "--release", release],
         stdout=subprocess.PIPE,
         check=True,
     )
