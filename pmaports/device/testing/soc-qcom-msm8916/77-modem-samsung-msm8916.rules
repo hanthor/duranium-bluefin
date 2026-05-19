@@ -1,3 +1,0 @@
-# Tag wwan ports of some Samsung devices to reduce the facility
-# lock query by ModemManager, avoiding a QMI protocol error.
-SUBSYSTEM=="wwan", ENV{ID_MM_QMI_FACILITY_LOCK_QUERY_REDUCED}="1"

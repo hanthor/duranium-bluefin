@@ -1,6 +1,0 @@
-# Panel
-drm-dp-aux-bus
-panel-edp
-drm-kms-helper
-# Touchscreen
-atmel-mxt-ts

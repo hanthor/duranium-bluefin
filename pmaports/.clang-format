@@ -1,9 +1,0 @@
----
-# C and C++ code
-Language: Cpp
-BasedOnStyle: WebKit
-DerivePointerAlignment: false
-PointerAlignment: Right
-TabWidth: 4
-UseTab: Always
-...

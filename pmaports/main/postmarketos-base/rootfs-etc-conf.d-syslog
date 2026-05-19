@@ -1,2 +1,0 @@
-# -C4048: enable syslog to SHM, 4048 KiB should be enough
-SYSLOGD_OPTS="-C4048 -t"

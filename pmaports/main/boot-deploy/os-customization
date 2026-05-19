@@ -1,3 +1,0 @@
-distro_name="postmarketOS"
-distro_prefix="pmos"
-crypttab_entry="root"
