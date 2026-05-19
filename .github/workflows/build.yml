@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: adamthiede/postmarketos:latest
+      image: adamthiede/postmarketos:edge
       options: --privileged
     env:
       PMOS_DEVICE: qcom-sc7180-lenovo-thinkpad-x13s
