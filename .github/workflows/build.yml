@@ -33,6 +33,17 @@ jobs:
           
           mkosi --version
 
+      - name: Prepare pmaports for device resolution
+        run: |
+          set -e
+          cd $GITHUB_WORKSPACE
+          
+          # Clone pmaports so mkosi.tools can resolve device packages
+          git clone --depth 1 https://gitlab.postmarketos.org/postmarketOS/pmaports.git
+          
+          # mkosi.configure.py looks for pmaports in current directory
+          ls -lh pmaports/
+
       - name: Build Duranium+Bluefin image
         run: |
           cd $GITHUB_WORKSPACE
