@@ -1,2 +1,4 @@
 pmaports/
 duranium-bluefin/*.raw*
+*.raw
+*.raw.zst

@@ -22,6 +22,7 @@ def main() -> int:
 
     result = subprocess.run(
         [f"{srcdir}/scripts/pmaports.py",
+         # mkosi.configure scripts don't have network access
          "--skip-fetch",
          "--device", device,
          "--ui", variant,

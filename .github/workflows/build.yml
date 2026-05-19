@@ -1,4 +1,4 @@
-name: Build Duranium+Bluefin
+name: Build PostmarketOS Duranium+Bluefin
 
 on:
   push:
@@ -7,48 +7,112 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-image:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # X13s with GNOME
+          - device: qcom-sc7180-lenovo-thinkpad-x13s
+            ui: gnome
+            release: edge
+
+    env:
+      PMOS_DEVICE: ${{ matrix.device }}
+      PMOS_VARIANT: ${{ matrix.ui }}
+      RELEASE: ${{ matrix.release }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up PostmarketOS build with pmbootstrap
+      - name: Install build dependencies
         run: |
           set -e
-          # Install pmbootstrap (PostmarketOS official builder)
           sudo apt-get update
-          sudo apt-get install -y pmbootstrap qemu-user-static zstd
+          sudo apt-get install -y \
+            git curl ca-certificates zstd \
+            python3 python3-venv python3-dev \
+            qemu-user-static qemu-utils \
+            dosfstools mtools xdg-utils gdisk systemd
           
-          # Initialize pmbootstrap with minimal setup
-          mkdir -p ~/.local/var/pmbootstrap
-          pmbootstrap config frontends gnome
-          pmbootstrap config device qcom-sc7180-lenovo-thinkpad-x13s
-          pmbootstrap config kernel linux-postmarketos-qcom
+          # Install mkosi from git (latest version with PostmarketOS support)
+          git clone --depth 1 https://github.com/systemd/mkosi.git /tmp/mkosi
+          cd /tmp/mkosi
+          pip3 install --break-system-packages .
+          mkosi --version
+
+      - name: Clone pmaports for device resolution
+        run: |
+          git clone --depth 1 --branch master \
+            https://gitlab.postmarketos.org/postmarketOS/pmaports.git \
+            /tmp/pmaports
+          echo "✅ pmaports cloned to /tmp/pmaports"
 
       - name: Build PostmarketOS Duranium image
         run: |
           set -e
-          export PMBOOTSTRAP_DIR="${{HOME}}/.local/var/pmbootstrap"
-          pmbootstrap install --no-fde
-          echo "✅ PostmarketOS system built"
+          cd $GITHUB_WORKSPACE
+          
+          # Set ImageId and ImageVersion
+          export IMAGEVERSION=$(date +%Y%m%d)
+          export IMAGEID="duranium-bluefin-${PMOS_DEVICE}-${PMOS_VARIANT}"
+          
+          # Run mkosi build with PostmarketOS
+          sudo -E mkosi \
+            --force \
+            -C mkosi.conf \
+            -O mkosi.output \
+            build
+          
+          echo "✅ Build complete"
+          ls -lh mkosi.output/
 
-      - name: Create bootable image
+      - name: Compress images
+        if: success()
         run: |
           set -e
-          # Flash to image file
-          pmbootstrap flasher --method=direct --dry-run 2>/dev/null || echo "Creating ISO/image..."
+          cd mkosi.output
           
-          # Look for build output
-          find ~/.local/var/pmbootstrap -name "*.img" -o -name "*.iso" 2>/dev/null | head -5
+          # Find and compress .raw images
+          for img in *.raw; do
+            if [ -f "$img" ]; then
+              echo "Compressing $img..."
+              zstd -19 "$img" -o "${img}.zst"
+              ls -lh "${img}.zst"
+            fi
+          done
 
-      - name: Upload build artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: duranium-image
+          name: duranium-bluefin-${{ matrix.device }}-${{ matrix.ui }}
           path: |
-            ~/.local/var/pmbootstrap/build/
+            mkosi.output/*.raw
+            mkosi.output/*.raw.zst
+            mkosi.output/*.json
           retention-days: 30
+
+      - name: Create Release
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          set -e
+          VERSION=$(date +v%Y.%m.%d)
+          
+          if gh release view "$VERSION" &>/dev/null; then
+            echo "Release $VERSION already exists"
+          else
+            gh release create "$VERSION" \
+              --title "PostmarketOS Duranium+Bluefin $VERSION" \
+              --notes "Automated build: PostmarketOS Duranium with Bluefin customization
+              
+Device: ${{ matrix.device }}
+UI: ${{ matrix.ui }}
+Release: ${{ matrix.release }}" \
+              mkosi.output/*.raw.zst mkosi.output/*.raw
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

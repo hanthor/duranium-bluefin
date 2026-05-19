@@ -1,0 +1,58 @@
+# INFO: To add new device, UI, and release images, see .ci/config.py
+#
+# NOTE: normally we'd want "latest", but mkosi is not in a stable release yet
+image: alpine:edge
+stages:
+  - test
+  # TODO: build-packages is not necessary once the duranium stuff is upstreamed
+  # in pmaports! But might be good to keep the config here in case we want to
+  # build custom branches for some reason...
+  - prepare
+  - build-packages
+  - build-image
+  - deploy-image
+variables:
+  # So that anything that runs install_pmbootstrap and tries to import pmb module
+  # can find it.
+  PYTHONPATH: "/tmp/pmbootstrap"
+  # Number of images to keep per device/ui/release combo, this number includes
+  # the one being built/uploaded!
+  IMAGES_TO_KEEP: 2
+
+test-pmaports-script:
+  stage: test
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - scripts/pmaports.py
+        - scripts/tests/test_pmaports.py
+  script:
+    - apk add python3 py3-pytest
+    - pytest scripts/tests/test_pmaports.py
+
+generate-image-jobs:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+  stage: prepare
+  needs: []
+  script:
+    - apk add python3 py3-jinja2
+    - python .ci/generate_image_jobs.py .ci/image-jobs.yaml.j2 .ci/image-jobs.yaml
+  artifacts:
+    paths:
+      - .ci/image-jobs.yaml
+
+image-jobs:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+  stage: build-packages
+  trigger:
+    include:
+      - artifact: .ci/image-jobs.yaml
+        job: generate-image-jobs
+    strategy: depend
