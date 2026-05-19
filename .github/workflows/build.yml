@@ -27,8 +27,10 @@ jobs:
         run: |
           set -e
           apk update
-          apk add --no-cache git curl ca-certificates python3 py3-pip zstd
-          pip install --break-system-packages mkosi
+          apk add --no-cache git curl ca-certificates python3 py3-pip py3-cryptography zstd
+          git clone --depth 1 https://github.com/systemd/mkosi.git /opt/mkosi
+          cd /opt/mkosi
+          pip install --break-system-packages -e .
           mkosi --version
 
       - name: Download pmaports for device resolution
