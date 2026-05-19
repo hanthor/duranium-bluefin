@@ -16,6 +16,10 @@ jobs:
             ui: gnome
             release: edge
 
+    container:
+      image: alpine:edge
+      options: --privileged
+
     env:
       PMOS_DEVICE: ${{ matrix.device }}
       PMOS_VARIANT: ${{ matrix.ui }}
@@ -27,20 +31,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install build dependencies
+      - name: Install build dependencies in Alpine
         run: |
           set -e
-          sudo apt-get update
-          sudo apt-get install -y \
+          apk update
+          apk add --no-cache \
             git curl ca-certificates zstd \
-            python3 python3-pip python3-dev \
-            qemu-user-static qemu-utils dosfstools mtools
+            python3 py3-pip perl bash dosfstools \
+            e2fsprogs-extra btrfs-progs xfsprogs \
+            qemu-img qemu-system-aarch64
           
-          # Install mkosi from git to /usr/local/bin
+          # Install mkosi from git
           git clone --depth 1 https://github.com/systemd/mkosi.git /tmp/mkosi
           cd /tmp/mkosi
-          sudo pip3 install .
-          which mkosi && mkosi --version
+          pip install --break-system-packages .
+          mkosi --version
 
       - name: Clone pmaports
         run: |
@@ -54,7 +59,7 @@ jobs:
           set -e
           cd $GITHUB_WORKSPACE
           export IMAGEVERSION=$(date +%Y%m%d)
-          sudo -E mkosi --force build
+          mkosi --force build
           echo "✅ Build complete"
           ls -lh mkosi.output/ || true
 
