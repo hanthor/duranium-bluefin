@@ -33,6 +33,11 @@ jobs:
           
           mkosi --version
 
+      - name: Download pmaports for device resolution
+        run: |
+          cd $GITHUB_WORKSPACE
+          git clone --depth 1 --branch main https://gitlab.postmarketos.org/postmarketOS/pmaports.git
+
       - name: Build Duranium+Bluefin image
         run: |
           cd $GITHUB_WORKSPACE
