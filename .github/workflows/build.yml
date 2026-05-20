@@ -58,13 +58,20 @@ jobs:
           echo "✅ pmaports ready"
 
       - name: Build PostmarketOS Duranium
+        env:
+          PMOS_DEVICE: ${{ matrix.device }}
+          PMOS_VARIANT: ${{ matrix.ui }}
+          RELEASE: ${{ matrix.release }}
         run: |
           set -e
           cd $GITHUB_WORKSPACE
           
-          # Use python script like official duranium does, or build directly
+          # mkosi respects env vars passed with -E (preserve environment)
           export IMAGEVERSION=$(date +%Y%m%d)
-          mkosi --force build
+          mkosi --force --environment=PMOS_DEVICE="$PMOS_DEVICE" \
+                --environment=PMOS_VARIANT="$PMOS_VARIANT" \
+                --environment=RELEASE="$RELEASE" \
+                build
           echo "✅ Build complete"
           ls -lh mkosi.output/ || true
 
